@@ -1,18 +1,26 @@
-use tokio::{net::TcpListener, io::{AsyncReadExt, AsyncWriteExt}};
-
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+};
 
 #[tokio::main]
 async fn main() {
     let listner = TcpListener::bind("127.0.0.1:8080").await.unwrap();
-    let (mut socket, _addr) = listner.accept().await.unwrap();
-
     loop {
+        let (mut socket, _addr) = listner.accept().await.unwrap();
+        tokio::spawn(async move {
+            let (red, mut wrt) = socket.split();
+            let mut reader = BufReader::new(red);
+            let mut line = String::new();
 
-        let mut buffer = [0u8; 1024];
-    
-        let bytes_read = socket.read(&mut buffer).await.unwrap();
-    
-        socket.write_all(&buffer[0..bytes_read]).await.unwrap();
+            loop {
+                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                if bytes_read == 0 {
+                    break;
+                }
+                wrt.write_all(&line.as_bytes()).await.unwrap();
+                line.clear();
+            }
+        });
     }
-
 }
